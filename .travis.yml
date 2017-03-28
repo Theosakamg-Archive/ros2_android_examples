@@ -1,0 +1,65 @@
+sudo: required
+
+language: generic
+
+services:
+  - docker
+
+env:
+  global:
+    - HOME_BUILD=$HOME/build
+    - ANDROID_SDK_VER=android-sdk-linux_x86-1.6_r1
+    - ANDROID_NDK_VER=android-ndk-r12b
+    - ANDROID_HOME=$HOME_BUILD/$ANDROID_SDK_VER
+    - ANDROID_NDK=$HOME_BUILD/$ANDROID_NDK_VER
+    - ANDROID_VER=android-21
+    - ANDROID_GCC=arm-linux-androideabi-clang
+    - ANDROID_ABI=armeabi-v7a
+    - ANDROID_SDK_HOME=$HOME_BUILD
+    - ROS2WS=$HOME_BUILD/ros2_java_ws
+    - ROS2JAVA_PATH=$ROS2WS/src/android-cmake/android-cmake/android.toolchain.cmake
+    - PYTHON_PATH=/usr/bin/python3
+
+cache:
+  directories:
+    - $ANDROID_HOME
+    - $ANDROID_NDK
+
+before_install:
+- docker pull theosakamg7/ros2java:latest
+- echo "INSTALL ANDROID SDK & NDK..."
+- cd $HOME_BUILD && wget https://dl.google.com/android/repository/$ANDROID_NDK_VER-linux-x86_64.zip && unzip $ANDROID_NDK_VER-linux-x86_64.zip &>/dev/null && ls -lFa ./
+- cd $HOME_BUILD && wget https://dl.google.com/android/archives/$ANDROID_SDK_VER.tgz && tar -xvzf $ANDROID_SDK_VER.tgz &>/dev/null && ls -lFa ./
+- echo "INSTALL/BUILD ROS2 AMENT..."
+- cd $HOME_BUILD && mkdir -p ament_ws/src && cd $HOME_BUILD/ament_ws
+- docker run -u "$UID" -it --rm -v `pwd`:`pwd` -w `pwd` theosakamg7/ros2java:latest sh -c "/usr/bin/wget https://gist.githubusercontent.com/Theosakamg/e6084cfafa6b7ea690104424cef970a2/raw/ament_java.repos"
+- docker run -u "$UID" -it --rm -v `pwd`:`pwd` -w `pwd` theosakamg7/ros2java:latest sh -c "/usr/bin/vcs import src < ament_java.repos"
+- docker run -u "$UID" -it --rm -v `pwd`:`pwd` -w `pwd` theosakamg7/ros2java:latest sh -c "src/ament/ament_tools/scripts/ament.py build --symlink-install --isolated"
+- echo "INSTALL ROS2 WS..."
+- cd $HOME_BUILD && mkdir -p $ROS2WS/src && cd $ROS2WS
+- docker run -u "$UID" -it --rm -v `pwd`:`pwd` -w `pwd` theosakamg7/ros2java:latest sh -c "/usr/bin/wget https://gist.githubusercontent.com/Theosakamg/617cd893813163cdcb9943a08d667964/raw/ros2_java_android.repos"
+- docker run -u "$UID" -it --rm -v `pwd`:`pwd` -w `pwd` theosakamg7/ros2java:latest sh -c "/usr/bin/vcs import src < ros2_java_android.repos"
+- cd $ROS2WS/src/ros2/rosidl_typesupport && patch -p1 < ../../ros2_java/ros2_java/rosidl_ros2_android.diff
+- mkdir -p $HOME_BUILD/.android
+- rm -rf $ROS2WS/src/ros2_java/ros2_android_examples && ln -s $HOME_BUILD/ros2java-alfred/ros2_android_examples $ROS2WS/src/ros2_java/ros2_android_examples
+- touch $ROS2WS/src/ros2/rosidl/python_cmake_module/AMENT_IGNORE && touch $ROS2WS/src/ros2/rosidl/rosidl_generator_py/AMENT_IGNORE
+- cd $ROS2WS/src/eProsima/Fast-RTPS && git submodule init && git submodule update
+- echo "BUILD ROS2 WS..."
+- cd $HOME_BUILD && ls -lFa ./ && find . -maxdepth 3 -type d -not \( -path "./.git" -prune \)
+- docker run -u "$UID" -it --rm -v `pwd`:`pwd` -w `pwd` theosakamg7/ros2java:latest sh -c ". ./ament_ws/install_isolated/local_setup.sh && cd $ROS2WS && ament build --isolated $ONLY_PACKAGE --cmake-args -DPYTHON_EXECUTABLE=$PYTHON_PATH -DCMAKE_TOOLCHAIN_FILE=$ROS2JAVA_PATH -DANDROID_FUNCTION_LEVEL_LINKING=OFF -DANDROID_NATIVE_API_LEVEL=$ANDROID_VER -DANDROID_TOOLCHAIN_NAME=$ANDROID_GCC -DANDROID_STL=gnustl_shared -DANDROID_ABI=$ANDROID_ABI -DANDROID_NDK=$ANDROID_NDK -DANDROID_HOME=$ANDROID_HOME -DTHIRDPARTY=ON -DCOMPILE_EXAMPLES=OFF -- --ament-cmake-args -DPYTHON_EXECUTABLE=$PYTHON_PATH -DCMAKE_TOOLCHAIN_FILE=$ROS2JAVA_PATH -DANDROID_FUNCTION_LEVEL_LINKING=OFF -DANDROID_NATIVE_API_LEVEL=$ANDROID_VER -DANDROID_TOOLCHAIN_NAME=$ANDROID_GCC -DANDROID_STL=gnustl_shared -DANDROID_ABI=$ANDROID_ABI -DANDROID_NDK=$ANDROID_NDK -DANDROID_HOME=$ANDROID_HOME -DTHIRDPARTY=ON -DCOMPILE_EXAMPLES=OFF -- --ament-gradle-args -Pament.android_stl=gnustl_shared -Pament.android_abi=$ANDROID_ABI -Pament.android_ndk=$ANDROID_NDK --"
+
+
+
+script:
+- cd $HOME_BUILD && docker run -u "$UID" -it --rm -v `pwd`:`pwd` -w `pwd` theosakamg7/ros2java:latest sh -c ". ament_ws/install_isolated/local_setup.sh && cd $ROS2WS #&& ament test --isolated --only rcljava"
+
+after_success:
+  - coveralls
+
+notifications:
+  webhooks:
+    urls:
+      - https://webhooks.gitter.im/e/4aac82b42245203edceb
+    on_success: change  # options: [always|never|change] default: always
+    on_failure: always  # options: [always|never|change] default: always
+    on_start: never     # options: [always|never|change] default: always

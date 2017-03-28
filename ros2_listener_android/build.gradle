@@ -1,27 +1,26 @@
-apply plugin: 'com.android.application'
-apply plugin: org.ros2.tools.gradle.AmentPlugin
+buildscript {
+    repositories {
+        jcenter()
+        mavenLocal()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
 
-android {
-  compileSdkVersion 25
-  buildToolsVersion "25.0.2"
-  defaultConfig {
-    minSdkVersion 21
-    targetSdkVersion 25
-  }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:2.2.0+'
+        classpath "gradle.plugin.org.ros2.rcljava:rclJavaPlugin:0.4.3"
+    }
 }
 
-buildscript {
-  repositories {
-    jcenter()
-    mavenCentral()
-    mavenLocal()
-    maven {
-      url "https://plugins.gradle.org/m2/"
-    }
-  }
+apply plugin: 'com.android.application'
+apply plugin: 'org.ros2.rcljava'
 
-  dependencies {
-    classpath 'com.android.tools.build:gradle:2.2.2'
-    classpath 'gradle.plugin.org.ros2.tools.gradle:ament:0.3.0'
-  }
+android {
+    compileSdkVersion 22
+    buildToolsVersion "23.0.3"
+                
+    lintOptions {
+        abortOnError false
+    }
 }
